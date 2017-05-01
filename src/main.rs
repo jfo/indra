@@ -5,34 +5,38 @@ use nom::*;
 type Link = Option<Box<Cell>>;
 
 #[derive(Debug)]
-enum Car {
-    Token(&'static[u8]),
-    // Cell,
-}
-
-#[derive(Debug)]
 struct Cell {
-    car: Car,
+    car: Val,
     cdr: Link,
 }
 
-named!(token, ws!(alpha));
-
-fn make_cell(input: &'static[u8]) -> Cell {
-    match token(input) {
-        IResult::Done(rest, matched) => Cell {
-            car: Car::Token(matched),
-            cdr: match token(rest) {
-                IResult::Done(_, _) => Some(Box::new(make_cell(rest))),
-                IResult::Incomplete(_) => None,
-                IResult::Error(_) => panic!(),
-            }
-        },
-        _ => panic!(),
-    }
+#[derive(Debug)]
+enum Val {
+    Token(&'static[u8]),
+    List(Link)
 }
 
+
+named!(tokenval<&'static[u8], Val>, do_parse!(x : ws!(alpha) >> (Val::Token(x))));
+named!(listval<&'static[u8], Val>, do_parse!(x : parens >> (Val::List(x))));
+
+named!(tokens(&'static[u8]) -> Link, do_parse!(
+        car : alt!(tokenval | listval)  >>
+        cdr : opt!(tokens) >>
+        (Some(Box::new(Cell {
+            car: car,
+            cdr: match cdr {
+                Some(x) => x,
+                None => None,
+            }
+        })))));
+
+named!(parens<&'static[u8], Link>, delimited!(
+        ws!(tag!("(")),
+        alt!(tokens | parens),
+        tag!(")")));
+
 fn main(){
-    let string = b"holy shit this worked";
-    println!("{:?}", make_cell(string));
+    let string = b"((a s) a)";
+    println!("{:?}", parens(string));
 }
