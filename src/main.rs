@@ -16,27 +16,38 @@ enum Val {
     List(Link)
 }
 
+impl Cell {
+    // pub fn to_string(self) -> u8 {
+    // }
+}
 
-named!(tokenval<&'static[u8], Val>, do_parse!(x : ws!(alpha) >> (Val::Token(x))));
-named!(listval<&'static[u8], Val>, do_parse!(x : parens >> (Val::List(x))));
 
-named!(tokens(&'static[u8]) -> Link, do_parse!(
-        car : alt!(tokenval | listval)  >>
-        cdr : opt!(tokens) >>
+named!( token <&'static[u8], Val >, do_parse!(x : ws!(alpha) >> (Val::Token(x))));
+named!( parens   <&'static[u8], Link>, delimited!(ws!(tag!("(")), items, ws!(tag!(")"))));
+named!( list  <&'static[u8], Val >, do_parse!(x : parens     >> (Val::List(x))));
+
+named!(
+    items(&'static[u8]) -> Link,
+    do_parse!(
+        car : alt_complete!( token | list )  >>
+        cdr : opt!(items) >>
         (Some(Box::new(Cell {
             car: car,
             cdr: match cdr {
                 Some(x) => x,
                 None => None,
             }
-        })))));
+        })))
+        )
+    );
 
-named!(parens<&'static[u8], Link>, delimited!(
-        ws!(tag!("(")),
-        alt!(tokens | parens),
-        tag!(")")));
 
 fn main(){
-    let string = b"((a s) a)";
-    println!("{:?}", parens(string));
+    let string = b"(
+        plus (minus two one) one
+    )";
+    println!("{:?}", match parens(string) {
+        IResult::Done(_, x) => x.unwrap().car.to_string(),
+        _ => panic!()
+    });
 }
